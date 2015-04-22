@@ -4,6 +4,10 @@ Created on Apr 22, 2015
 @author: Jordan H. Deyton
 '''
 
+import base64
+import urllib2
+# import json
+
 class Core(object):
     '''
     * ICore is an interface that is realized by Core and used by clients that
@@ -21,10 +25,60 @@ class Core(object):
     * @author Jay Jay Billings
     '''
 
-    def __init__(self, params):
+    def __init__(self):
         '''
         Constructor
         '''
+        self.host = 'localhost'
+
+    def postUpdateMessage(self, message):
+        '''
+    /**
+     * This operation posts a message containing an update to the ICE Item
+     * designated in the body of the message.
+     * 
+     * This operation is primarily used by the ICE Updater to post messages to
+     * the Core from remote processes. The message format can be found in the
+     * documentation for the Updater.
+     * 
+     * @param message
+     *            The message that should be passed on to the specified Item.
+     *            This string must be in JSON and conform to the message format
+     *            of the ICE Updater.
+     * @return "OK" if the post was successful, null if not to conform to JAX-RS
+     *         HTTP 200/204 return code conversion.
+     */
+    @POST
+    @Path("update")
+    @Consumes("application/x-www-form-urlencoded")
+    @Produces("text/plain")
+        '''
+        # This is the important method...
+        
+        # Set up the URL and authentication string.
+        url = 'http://' + self.host + ':8080/ice/update'
+        code = base64.encodestring('ice:veryice')
+        
+        # Set up the HTTP request using default python modules.
+        # The headers, including the authentication string, must be defined here.
+        request = urllib2.Request(url)
+        request.add_header('Authorization', 'Basic %s' % code)
+        request.add_header('Content-type', 'application/x-www-form-urlencoded')
+        request.add_header('Accept', 'text/plain')
+        
+        # TODO Set up the payload.
+        
+        # Attempt to post the request to the ICE Core web service.
+        returnValue = 'OK'
+        try:
+            response = urllib2.urlopen(request)
+        except urllib2.HTTPError as e:
+            print 'ICore error: ', 'Failed to connect to Core web service.'
+            print 'HTTP error code: ', e.code
+            print 'HTTP error mesg: ', e.reason
+            returnValue = None
+        
+        return returnValue
         
     def connect(self):
         '''
@@ -42,7 +96,6 @@ class Core(object):
     @Produces("text/plain")
         '''
 
-
     def disconnect(self, uniqueClientId):
         '''
     /**
@@ -54,7 +107,6 @@ class Core(object):
      *            would like to disconnect.
      */
         '''
-
 
     def getFileSystem(self, uniqueClientID):
         '''
@@ -69,7 +121,6 @@ class Core(object):
      */
         '''
 
-
     def registerItem(self, itemBuilder):
         '''
     /**
@@ -82,7 +133,6 @@ class Core(object):
      *            available to the Core.
      */
         '''
-
 
     def registerCompositeItem(self, builder):
         '''
@@ -97,7 +147,6 @@ class Core(object):
      */
         '''
 
-
     def unregisterItem(self, itemBuilder):
         '''
     /**
@@ -111,7 +160,6 @@ class Core(object):
      *            unavailable to the Core.
      */
         '''
-
 
     def createItem(self, itemType):
         '''
@@ -316,25 +364,5 @@ class Core(object):
      */
         '''
 
-    def postUpdateMessage(self, message):
-        '''
-    /**
-     * This operation posts a message containing an update to the ICE Item
-     * designated in the body of the message.
-     * 
-     * This operation is primarily used by the ICE Updater to post messages to
-     * the Core from remote processes. The message format can be found in the
-     * documentation for the Updater.
-     * 
-     * @param message
-     *            The message that should be passed on to the specified Item.
-     *            This string must be in JSON and conform to the message format
-     *            of the ICE Updater.
-     * @return "OK" if the post was successful, null if not to conform to JAX-RS
-     *         HTTP 200/204 return code conversion.
-     */
-    @POST
-    @Path("update")
-    @Consumes("application/x-www-form-urlencoded")
-    @Produces("text/plain")
-        '''
+        
+        
