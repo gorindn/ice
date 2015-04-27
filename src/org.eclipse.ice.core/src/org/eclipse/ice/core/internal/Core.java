@@ -12,18 +12,6 @@
  *******************************************************************************/
 package org.eclipse.ice.core.internal;
 
-import javax.ws.rs.ApplicationPath;
-import javax.ws.rs.core.Application;
-
-import org.eclipse.ice.core.iCore.ICore;
-import org.eclipse.ice.core.iCore.IPersistenceProvider;
-import org.eclipse.ice.core.internal.itemmanager.ItemManager;
-
-import org.eclipse.ice.datastructures.form.Form;
-import org.eclipse.ice.datastructures.form.FormStatus;
-import org.eclipse.ice.datastructures.ICEObject.ICEList;
-import org.eclipse.ice.datastructures.ICEObject.Identifiable;
-
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -31,31 +19,21 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URL;
 import java.util.ArrayList;
-
-import org.eclipse.ice.item.ICompositeItemBuilder;
-import org.eclipse.ice.item.ItemBuilder;
-import org.eclipse.ice.item.SerializedItemBuilder;
-import org.eclipse.ice.item.messaging.Message;
-
 import java.util.Dictionary;
 import java.util.HashSet;
 import java.util.Hashtable;
-
-import org.osgi.framework.Bundle;
-import org.osgi.service.http.HttpService;
-
-import javax.servlet.ServletException;
-
-import org.osgi.service.http.NamespaceException;
-import org.osgi.service.component.ComponentContext;
-
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import javax.servlet.ServletException;
+import javax.ws.rs.ApplicationPath;
+import javax.ws.rs.core.Application;
+
+import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.resources.IProjectDescription;
 import org.eclipse.core.resources.IResource;
-import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IWorkspaceRoot;
 import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.CoreException;
@@ -63,7 +41,22 @@ import org.eclipse.core.runtime.FileLocator;
 import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.Path;
 import org.eclipse.core.runtime.Platform;
-import org.osgi.service.http.*;
+import org.eclipse.ice.core.iCore.ICore;
+import org.eclipse.ice.core.iCore.IPersistenceProvider;
+import org.eclipse.ice.core.internal.itemmanager.ItemManager;
+import org.eclipse.ice.datastructures.ICEObject.ICEList;
+import org.eclipse.ice.datastructures.ICEObject.Identifiable;
+import org.eclipse.ice.datastructures.form.Form;
+import org.eclipse.ice.datastructures.form.FormStatus;
+import org.eclipse.ice.item.ICompositeItemBuilder;
+import org.eclipse.ice.item.ItemBuilder;
+import org.eclipse.ice.item.SerializedItemBuilder;
+import org.eclipse.ice.item.messaging.Message;
+import org.osgi.framework.Bundle;
+import org.osgi.service.component.ComponentContext;
+import org.osgi.service.http.HttpContext;
+import org.osgi.service.http.HttpService;
+import org.osgi.service.http.NamespaceException;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -181,7 +174,7 @@ public class Core extends Application implements ICore {
 
 		// Start the webservice!
 		startHttpService();
-		
+
 		return;
 
 	}
@@ -753,63 +746,6 @@ public class Core extends Application implements ICore {
 	}
 
 	/**
-	 * This private operation creates an instance of the Message class from a
-	 * string using a JSON parser.
-	 * 
-	 * This operation is synchronized so that the core can't be overloaded.
-	 * 
-	 * @param messageString
-	 *            The original message, as a string
-	 * @return list list of built messages.
-	 */
-	private ArrayList<Message> buildMessagesFromString(String messageString) {
-
-		// Create the ArrayList of messages
-		ArrayList<Message> messages = new ArrayList<Message>();
-
-		// Create the parser and gson utility
-		JsonParser parser = new JsonParser();
-		GsonBuilder builder = new GsonBuilder();
-		Gson gson = builder.create();
-
-		// Catch any exceptions and return the empty list
-		try {
-
-			// Make the string a json string
-			JsonElement messageJson = parser.parse(messageString);
-			JsonObject messageJsonObject = messageJson.getAsJsonObject();
-
-			// Get the Item id from the json
-			JsonPrimitive itemIdJson = messageJsonObject
-					.getAsJsonPrimitive("item_id");
-			int itemId = itemIdJson.getAsInt();
-
-			// Get the array of posts from the message
-			JsonArray jsonMessagesList = messageJsonObject
-					.getAsJsonArray("posts");
-
-			// Load the list
-			for (int i = 0; i < jsonMessagesList.size(); i++) {
-				// Get the message as a json element
-				JsonElement jsonMessage = jsonMessagesList.get(i);
-				// Marshal it into a message
-				Message tmpMessage = gson.fromJson(jsonMessage, Message.class);
-				// Set the item id
-				tmpMessage.setItemId(itemId);
-				// Put it in the list
-				messages.add(tmpMessage);
-			}
-		} catch (JsonParseException e) {
-			// Log the message
-			System.err.println("Core Message: "
-					+ "JSON parsing failed for message " + messageString);
-			e.printStackTrace();
-		}
-
-		return messages;
-	}
-
-	/**
 	 * (non-Javadoc)
 	 * 
 	 * @see ICore#postUpdateMessage(String message)
@@ -820,7 +756,7 @@ public class Core extends Application implements ICore {
 		updateLock.set(true);
 
 		// Local Declarations
-		String retVal = null;
+		String retVal = "OK";
 
 		// Print the message if debugging is enabled
 		if (debuggingEnabled) {
@@ -828,24 +764,49 @@ public class Core extends Application implements ICore {
 					+ "Update received with message: " + message);
 		}
 
-		// Only process the message if it exists and is not empty
-		if (message != null && !message.isEmpty() && message.contains("=")) {
-			// Split the message on "=" since it is
-			// application/x-www-form-encoded
-			String[] messageParts = message.split("=");
-			if (messageParts.length > 1) {
-				// Get the message object.
-				ArrayList<Message> msgList = buildMessagesFromString(messageParts[1]);
-				// Post the messages if there are any. Fail otherwise.
-				if (!msgList.isEmpty()) {
-					for (int i = 0; i < msgList.size(); i++) {
-						Message msg = msgList.get(i);
-						itemManager.postUpdateMessage(msg);
-					}
-					// Set the return value
-					retVal = "OK";
-				}
+		List<Message> messages = new ArrayList<Message>();
+
+		try {
+			JsonParser jsonParser = new JsonParser();
+			JsonElement jsonMessage = jsonParser.parse(message);
+			JsonObject jsonObject = jsonMessage.getAsJsonObject();
+
+			// Get the Item id from the json
+			JsonPrimitive itemIdJson = jsonObject.getAsJsonPrimitive("item_id");
+			int itemId = itemIdJson.getAsInt();
+
+			// Get the array of posts from the message
+			JsonArray jsonMessagesList = jsonObject.getAsJsonArray("posts");
+
+			// We will need to use a GSON builder to marshall the JSON to ICE
+			// Messages.
+			GsonBuilder builder = new GsonBuilder();
+			Gson gson = builder.create();
+
+			// Load the list
+			for (int i = 0; i < jsonMessagesList.size(); i++) {
+				// Get the message as a json element
+				jsonMessage = jsonMessagesList.get(i);
+				// Marshal it into a message
+				Message tmpMessage = gson.fromJson(jsonMessage, Message.class);
+				// Set the item id
+				tmpMessage.setItemId(itemId);
+				// Put it in the list
+				messages.add(tmpMessage);
 			}
+		} catch (JsonParseException | NumberFormatException e) {
+			// Log the message
+			System.err.println("Core Message: "
+					+ "JSON parsing failed for message " + message);
+			e.printStackTrace();
+
+			// Set the return value to null, signifying a processing error.
+			retVal = null;
+		}
+
+		// Pass all successfully processed messages to the item manager.
+		for (Message msg : messages) {
+			itemManager.postUpdateMessage(msg);
 		}
 
 		// Unlock the operation and return safely

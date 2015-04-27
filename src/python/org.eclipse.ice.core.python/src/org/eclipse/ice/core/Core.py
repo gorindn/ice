@@ -5,8 +5,9 @@ Created on Apr 22, 2015
 '''
 
 import base64
+import urllib
 import urllib2
-# import json
+import json
 
 class Core(object):
     '''
@@ -29,7 +30,8 @@ class Core(object):
         '''
         Constructor
         '''
-        self.host = 'localhost'
+        self._host = 'localhost'
+        self._itemId = 1;
 
     def postUpdateMessage(self, message):
         '''
@@ -55,29 +57,46 @@ class Core(object):
         '''
         # This is the important method...
         
+        # TODO Validate the message...
+        
         # Set up the URL and authentication string.
-        url = 'http://' + self.host + ':8080/ice/update'
-        code = base64.encodestring('ice:veryice')
+        url = 'http://' + self._host + ':8080/ice/update'
+        # I was using encodestring(...), which was giving me a newline that I 
+        # never noticed, causing the request to have exactly two bytes (one 
+        # carriage return, one line feed) from the end of the content... argh!
+        code = base64.b64encode('ice:veryice')
+        
+        # Set up the payload. The useful data is serialized via JSON.
+        jsonMessage = {'item_id':self._itemId, 'posts': [{'msg':message}]}
+        #data = urllib.urlencode({'post': jsonString})
+        data = json.dumps(jsonMessage)
         
         # Set up the HTTP request using default python modules.
         # The headers, including the authentication string, must be defined here.
         request = urllib2.Request(url)
         request.add_header('Authorization', 'Basic %s' % code)
-        request.add_header('Content-type', 'application/x-www-form-urlencoded')
+        #request.add_header('Content-type', 'application/x-www-form-urlencoded')
+        request.add_header('Content-type', 'application/json')
         request.add_header('Accept', 'text/plain')
+        request.add_data(data)
         
-        # TODO Set up the payload.
-        
-        # Attempt to post the request to the ICE Core web service.
+        # Attempt to POST the request to the ICE Core web service.
         returnValue = 'OK'
         try:
             response = urllib2.urlopen(request)
+            # We should get back an HTTP 200, OK. Otherwise, 
+            if response.code == 'OK':
+                print 'ICore message: ', 'Successfully posted request.'
+            else:
+                print 'ICore message: ', 'Successfully posted request, but ', \
+                                         'received invalid response.'
         except urllib2.HTTPError as e:
             print 'ICore error: ', 'Failed to connect to Core web service.'
             print 'HTTP error code: ', e.code
             print 'HTTP error mesg: ', e.reason
             returnValue = None
         
+        # Return 'OK' if successful, null/None otherwise.
         return returnValue
         
     def connect(self):
