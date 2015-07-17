@@ -86,6 +86,7 @@ public class MOOSE extends Item {
 	@XmlTransient()
 	private DataComponent postProcessorsData;
 
+	
 	/**
 	 * Reference to the Model's input tree.
 	 */
