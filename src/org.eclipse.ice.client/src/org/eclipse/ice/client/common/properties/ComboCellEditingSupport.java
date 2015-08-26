@@ -16,6 +16,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.eclipse.ice.datastructures.form.AllowedValueType;
 import org.eclipse.jface.viewers.CellEditor;
 import org.eclipse.jface.viewers.ColumnViewer;
 import org.eclipse.jface.viewers.ComboBoxCellEditor;
@@ -48,6 +49,8 @@ public class ComboCellEditingSupport extends TextCellEditingSupport {
 	 */
 	private final ComboBoxCellEditor comboCell;
 
+	private final FileCellEditor fileCell;
+
 	/**
 	 * A Map used to quickly look up an index of an element's value in its list
 	 * of allowed values. This is used when the {@link #contentProvider}
@@ -74,8 +77,7 @@ public class ComboCellEditingSupport extends TextCellEditingSupport {
 	 *            <code>EditingSupport</code> are passed to this content
 	 *            provider.
 	 */
-	public ComboCellEditingSupport(ColumnViewer viewer,
-			IComboCellContentProvider contentProvider) {
+	public ComboCellEditingSupport(ColumnViewer viewer, IComboCellContentProvider contentProvider) {
 		super(viewer, contentProvider);
 
 		// Store a reference to the IComboCellContentProvider.
@@ -85,9 +87,10 @@ public class ComboCellEditingSupport extends TextCellEditingSupport {
 		Composite parent = (Composite) viewer.getControl();
 
 		// Create the ComboBoxCellEditor.
-		comboCell = new ComboBoxCellEditor(parent, new String[] {},
-				SWT.DROP_DOWN | SWT.READ_ONLY);
+		comboCell = new ComboBoxCellEditor(parent, new String[] {}, SWT.DROP_DOWN | SWT.READ_ONLY);
 		comboCell.getControl().setBackground(parent.getBackground());
+
+		fileCell = new FileCellEditor(parent);
 
 		// Create a HashMap to contain values for discrete Entry values.
 		valueMap = new HashMap<String, Integer>();
@@ -108,13 +111,23 @@ public class ComboCellEditingSupport extends TextCellEditingSupport {
 
 		// For elements that need a Combo, use the ComboBoxCellEditor.
 		if (contentProvider.requiresCombo(element)) {
-			editor = comboCell;
 
+			TreeProperty property = (TreeProperty) element;
+
+			boolean isFile = property.getEntry().getValueType() == AllowedValueType.File;
 			// Update the Combo's items.
-			List<String> allowedValues = contentProvider
-					.getAllowedValues(element);
+			List<String> allowedValues = contentProvider.getAllowedValues(element);
 			String[] items = new String[allowedValues.size()];
-			comboCell.setItems(allowedValues.toArray(items));
+
+			if (isFile) {
+				System.out.println("Setting: " + items.length);
+				fileCell.setItems(items);
+				editor = fileCell;
+
+			} else {
+				comboCell.setItems(allowedValues.toArray(items));
+				editor = comboCell;
+			}
 
 			// Update the Map so that we can convert from the text value to its
 			// index in the allowed values (the Combo widget uses integers!).
@@ -122,6 +135,7 @@ public class ComboCellEditingSupport extends TextCellEditingSupport {
 			for (int i = 0; i < items.length; i++) {
 				valueMap.put(items[i], i);
 			}
+
 		}
 		// Resort to the default TextCellEditor for all other elements.
 		else {
@@ -151,9 +165,21 @@ public class ComboCellEditingSupport extends TextCellEditingSupport {
 	public void setValue(Object element, Object value) {
 
 		if (value != null && contentProvider.requiresCombo(element)) {
-			// We need to convert the index into its corresponding string value.
-			// We can cheat by using the string stored in the Combo.
-			String comboItem = comboCell.getItems()[(Integer) value];
+			TreeProperty property = (TreeProperty) element;
+
+			boolean isFile = property.getEntry().getValueType() == AllowedValueType.File;
+
+			String comboItem = "";
+
+			if (isFile) {
+				comboItem = fileCell.getCombo().getItems()[(Integer) value];
+			} else {
+
+				// We need to convert the index into its corresponding string
+				// value.
+				// We can cheat by using the string stored in the Combo.
+				comboItem = comboCell.getItems()[(Integer) value];
+			}
 			if (contentProvider.setValue(element, comboItem)) {
 				// Don't forget to update the viewer if the value changed.
 				getViewer().update(element, null);
