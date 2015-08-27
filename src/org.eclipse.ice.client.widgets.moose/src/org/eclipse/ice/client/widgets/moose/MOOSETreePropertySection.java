@@ -1,14 +1,13 @@
 /*******************************************************************************
- * Copyright (c) 2014 UT-Battelle, LLC.
+ * Copyright (c) 2014, 2015 UT-Battelle, LLC.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/epl-v10.html
  *
  * Contributors:
- *   Initial API and implementation and/or initial documentation - Jay Jay Billings,
- *   Jordan H. Deyton, Dasha Gorin, Alexander J. McCaskey, Taylor Patterson,
- *   Claire Saunders, Matthew Wang, Anna Wojtowicz
+ *   Jordan Deyton - Initial API and implementation and/or initial documentation
+ *   Robert Smith, Jordan Deyton - bug 474744
  *******************************************************************************/
 package org.eclipse.ice.client.widgets.moose;
 
@@ -16,14 +15,10 @@ import org.eclipse.ice.client.common.properties.CellColumnLabelProvider;
 import org.eclipse.ice.client.common.properties.DescriptionCellContentProvider;
 import org.eclipse.ice.client.common.properties.ICellContentProvider;
 import org.eclipse.ice.client.common.properties.TextCellEditingSupport;
-import org.eclipse.ice.client.common.properties.TreeProperty;
 import org.eclipse.ice.client.common.properties.TreePropertyContentProvider;
 import org.eclipse.ice.client.widgets.TreePropertySection;
-import org.eclipse.ice.datastructures.form.Entry;
-import org.eclipse.jface.viewers.CheckStateChangedEvent;
 import org.eclipse.jface.viewers.CheckboxTableViewer;
 import org.eclipse.jface.viewers.ColumnViewerToolTipSupport;
-import org.eclipse.jface.viewers.ICheckStateListener;
 import org.eclipse.jface.viewers.TableViewer;
 import org.eclipse.jface.viewers.TableViewerColumn;
 import org.eclipse.jface.window.ToolTip;
@@ -114,9 +109,11 @@ public class MOOSETreePropertySection extends TreePropertySection {
 					+ "to the input file.\n" + "If unchecked, the parameter "
 					+ "will be commented out in the input file.");
 			column.setResizable(true);
-			// Create a MOOSECheckStateProvider which sets the FormEditor as
-			// dirty when the checkbox's value is changed.
-			contentProvider = new MOOSECheckStateProvider() {
+
+			// Create the check state manager. It also functions as the cell
+			// content provider for the first column.
+			TableCheckStateManager checkStateManager = new TableCheckStateManager(
+					tableViewer) {
 				@Override
 				public boolean setValue(Object element, Object value) {
 					boolean changed = super.setValue(element, value);
@@ -128,39 +125,20 @@ public class MOOSETreePropertySection extends TreePropertySection {
 					return changed;
 				}
 			};
-			checkColumn.setLabelProvider(new CellColumnLabelProvider(
-					contentProvider));
+
+			// Create a MOOSECheckStateProvider which sets the FormEditor as
+			// dirty when the checkbox's value is changed.
+			contentProvider = checkStateManager;
+
+			// Add a blank label provider. Nothing should appear in the first
+			// column except for the checkboxes.
+			checkColumn.setLabelProvider(
+					new CellColumnLabelProvider(contentProvider));
 
 			// Set the content provider and listener for the CheckBox column
-			((CheckboxTableViewer) tableViewer)
-					.setCheckStateProvider((MOOSECheckStateProvider) contentProvider);
-			((CheckboxTableViewer) tableViewer)
-					.addCheckStateListener(new MOOSECheckStateListener() {
-						@Override
-						public void checkStateChanged(
-								CheckStateChangedEvent event) {
-							// Get the element whose value was modified
-							Object element = event.getElement();
-
-							// If the element is not a non-null TreeProperty, do
-							// nothing
-							if (element != null
-									&& element instanceof TreeProperty) {
-
-								// Get the checked state and associated entry of
-								// the check box
-								String newValue = ((Boolean) event.getChecked())
-										.toString();
-								Entry entry = ((TreeProperty) element)
-										.getEntry();
-
-								getFormEditor().setDirty(true);
-
-								// Set the entry's new value.
-								entry.setTag(newValue);
-							}
-						}
-					});
+			CheckboxTableViewer checkedTableViewer = (CheckboxTableViewer) tableViewer;
+			checkedTableViewer.setCheckStateProvider(checkStateManager);
+			checkedTableViewer.addCheckStateListener(checkStateManager);
 
 			// Create the default columns.
 			super.addTableViewerColumns(tableViewer);
@@ -187,10 +165,10 @@ public class MOOSETreePropertySection extends TreePropertySection {
 					return changed;
 				}
 			};
-			descriptionColumn.setLabelProvider(new CellColumnLabelProvider(
-					contentProvider));
-			descriptionColumn.setEditingSupport(new TextCellEditingSupport(
-					tableViewer, contentProvider));
+			descriptionColumn.setLabelProvider(
+					new CellColumnLabelProvider(contentProvider));
+			descriptionColumn.setEditingSupport(
+					new TextCellEditingSupport(tableViewer, contentProvider));
 			// ------------------------------------------------- //
 		}
 
@@ -214,8 +192,8 @@ public class MOOSETreePropertySection extends TreePropertySection {
 			Table table;
 
 			// Create the TableViewer and the underlying Table Control.
-			tableViewer = CheckboxTableViewer.newCheckList(client, SWT.BORDER
-					| SWT.FULL_SELECTION | SWT.V_SCROLL);
+			tableViewer = CheckboxTableViewer.newCheckList(client,
+					SWT.BORDER | SWT.FULL_SELECTION | SWT.V_SCROLL);
 			// Set some properties for the table.
 			table = tableViewer.getTable();
 			table.setHeaderVisible(true);
@@ -234,21 +212,5 @@ public class MOOSETreePropertySection extends TreePropertySection {
 		}
 
 		return tableViewer;
-	}
-
-	/**
-	 * A class providing a concrete implementation of ICheckStateListener. It
-	 * exists only to have its methods overridden by MOOSETreePropertySection.
-	 * 
-	 * @author Robert Smith
-	 *
-	 */
-	private class MOOSECheckStateListener implements ICheckStateListener {
-		/*
-		 * Implements an ICheckStateListener method
-		 */
-		@Override
-		public void checkStateChanged(CheckStateChangedEvent event) {
-		}
 	}
 }
