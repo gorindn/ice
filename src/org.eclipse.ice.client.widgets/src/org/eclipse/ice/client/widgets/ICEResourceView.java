@@ -114,9 +114,14 @@ public class ICEResourceView extends PlayableViewPart implements
 	// -------------------------------------- //
 
 	/**
-	 * The TreeViewer for the ResourceComponent.
+	 * The TreeViewer for the file ResourceComponent.
 	 */
-	private TreeViewer resourceTreeViewer;
+	private TreeViewer fileResourceTreeViewer;
+	
+	/**
+	 * The TreeViewer for the image ResourceComponent.
+	 */
+	private TreeViewer imageResourceTreeViewer;
 
 	/**
 	 * The TabFolder for managing the tabs containing the TreeViewer.
@@ -263,12 +268,20 @@ public class ICEResourceView extends PlayableViewPart implements
 			resourceComponent.unregister(this);
 
 			// Clear the related UI pieces.
-			if (resourceTreeViewer != null
-					&& !resourceTreeViewer.getControl().isDisposed()) {
+			if (fileResourceTreeViewer != null
+					&& !fileResourceTreeViewer.getControl().isDisposed()) {
 				textList.clear();
 				imageList.clear();
-				resourceTreeViewer.refresh();
-				resourceTreeViewer.getTree().redraw();
+				fileResourceTreeViewer.refresh();
+				fileResourceTreeViewer.getTree().redraw();
+			}
+			
+			if (imageResourceTreeViewer != null
+					&& !imageResourceTreeViewer.getControl().isDisposed()) {
+				textList.clear();
+				imageList.clear();
+				imageResourceTreeViewer.refresh();
+				imageResourceTreeViewer.getTree().redraw();
 			}
 
 			// Unset the reference to the old ResourceComponent.
@@ -324,17 +337,21 @@ public class ICEResourceView extends PlayableViewPart implements
 		// Create the tool bar and buttons for the view
 		createActions();
 
-		// Initialize the TreeViewer
-		resourceTreeViewer = new TreeViewer(tabFolder);
+		// Initialize the TreeViewers
+		fileResourceTreeViewer = new TreeViewer(tabFolder);
+		imageResourceTreeViewer = new TreeViewer(tabFolder);
 		// Create content and label providers
-		initializeTreeViewer(resourceTreeViewer);
+		initializeTreeViewer(fileResourceTreeViewer);
+		initializeTreeViewer(imageResourceTreeViewer);
 		// Register the tree to the tabs
-		textTab.setControl(resourceTreeViewer.getControl());
-		imageTab.setControl(resourceTreeViewer.getControl());
+		textTab.setControl(fileResourceTreeViewer.getControl());
+		imageTab.setControl(imageResourceTreeViewer.getControl());
 		// Register this view as a SelectionProvider
-		getSite().setSelectionProvider(resourceTreeViewer);
+		getSite().setSelectionProvider(fileResourceTreeViewer);
+		getSite().setSelectionProvider(imageResourceTreeViewer);
 		// Registered the view as a double click listener of the TreeViewer
-		resourceTreeViewer.addDoubleClickListener(this);
+		fileResourceTreeViewer.addDoubleClickListener(this);
+		imageResourceTreeViewer.addDoubleClickListener(this);
 
 		// Add a listener to catch tab selection changes.
 		// NOTE: In Windows, this event is fired instantly, so this listener
@@ -540,21 +557,32 @@ public class ICEResourceView extends PlayableViewPart implements
 		// Only perform a UI update if the component is valid and the UI pieces
 		// exist.
 		if (component != null && component == resourceComponent
-				&& resourceTreeViewer != null) {
+				&& fileResourceTreeViewer != null && imageResourceTreeViewer != 
+				null) {
 
 			// Sync with the display
 			PlatformUI.getWorkbench().getDisplay().asyncExec(new Runnable() {
 				@Override
 				public void run() {
 					// Just do a blanket update - no need to check the component
-					if (resourceTreeViewer != null
-							&& !resourceTreeViewer.getControl().isDisposed()) {
+					if (fileResourceTreeViewer != null
+							&& !fileResourceTreeViewer.getControl().isDisposed()) {
 						logger.info("ICEResourceView Message: "
 								+ "Updating resource table.");
 						sortTreeContent();
 						setTreeContent();
-						resourceTreeViewer.refresh();
-						resourceTreeViewer.getTree().redraw();
+						fileResourceTreeViewer.refresh();
+						fileResourceTreeViewer.getTree().redraw();
+					}
+					
+					if (imageResourceTreeViewer != null
+							&& !imageResourceTreeViewer.getControl().isDisposed()) {
+						logger.info("ICEResourceView Message: "
+								+ "Updating resource table.");
+						sortTreeContent();
+						setTreeContent();
+						imageResourceTreeViewer.refresh();
+						imageResourceTreeViewer.getTree().redraw();
 					}
 				}
 			});
@@ -599,24 +627,27 @@ public class ICEResourceView extends PlayableViewPart implements
 		if (playAction.isInPlayState()) {
 			playAction.stop();
 		}
+
+		//Set the input to the two ResourceTreeViewsers
+		imageResourceTreeViewer.setInput(imageList);
+		fileResourceTreeViewer.setInput(textList);
+		
 		// If there are no files, but there are images, set to the images tab.
 		// Otherwise, default to the files tab.
 		if (textList.isEmpty() && !imageList.isEmpty()) {
-			resourceTreeViewer.setInput(imageList);
 			tabFolder.setSelection(1);
 			playable = true;
 
 			// Select the first available image resource.
-			resourceTreeViewer.setSelection(
+			imageResourceTreeViewer.setSelection(
 					new StructuredSelection(imageList.get(0)), true);
 		} else {
-			resourceTreeViewer.setInput(textList);
 			tabFolder.setSelection(0);
 			playable = false;
 
 			// Select the first available text resource.
 			if (!textList.isEmpty()) {
-				resourceTreeViewer.setSelection(new StructuredSelection(
+				fileResourceTreeViewer.setSelection(new StructuredSelection(
 						textList.get(0)), true);
 			}
 		}
@@ -638,12 +669,12 @@ public class ICEResourceView extends PlayableViewPart implements
 			playAction.stop();
 		}
 		if (tabIndex == 1) {
-			resourceTreeViewer.setInput(imageList);
+			imageResourceTreeViewer.setInput(imageList);
 			if (!imageList.isEmpty()) {
 				playable = true;
 			}
 		} else {
-			resourceTreeViewer.setInput(textList);
+			fileResourceTreeViewer.setInput(textList);
 			playable = false;
 		}
 		return;
@@ -837,21 +868,27 @@ public class ICEResourceView extends PlayableViewPart implements
 				// Get the currently selected resource in the view. (Or the
 				// first selected resource if multiple resources are
 				// selected even though this has no effect.)
-				TreeItem[] currSelection = resourceTreeViewer.getTree()
-						.getSelection();
-				int currIndex = resourceTreeViewer.getTree().indexOf(
-						currSelection[0]);
+				TreeItem[] currSelection; 
+				int currIndex;
 
 				// Set the selection to the next resource in the currently
 				// displayed list or the first resource if the last resource
 				// is currently selected.
 				if (tabFolder.getSelectionIndex() == 1 && !imageList.isEmpty()) {
+					currSelection = imageResourceTreeViewer.getTree()
+							.getSelection();
+					currIndex = imageResourceTreeViewer.getTree().indexOf(
+							currSelection[0]);
 					int nextIndex = (currIndex + 1) % imageList.size();
-					resourceTreeViewer.setSelection(new StructuredSelection(
+					imageResourceTreeViewer.setSelection(new StructuredSelection(
 							imageList.get(nextIndex)), true);
 				} else if (!textList.isEmpty()) {
+					currSelection = fileResourceTreeViewer.getTree()
+							.getSelection();
+					currIndex = fileResourceTreeViewer.getTree().indexOf(
+							currSelection[0]);
 					int nextIndex = (currIndex + 1) % textList.size();
-					resourceTreeViewer.setSelection(new StructuredSelection(
+					fileResourceTreeViewer.setSelection(new StructuredSelection(
 							textList.get(nextIndex)), true);
 				}
 			}
@@ -876,27 +913,33 @@ public class ICEResourceView extends PlayableViewPart implements
 				// Get the currently selected resource in the view. (Or the
 				// first selected resource if multiple resources are
 				// selected even though this has no effect.)
-				TreeItem[] currSelection = resourceTreeViewer.getTree()
-						.getSelection();
-				int currIndex = resourceTreeViewer.getTree().indexOf(
-						currSelection[0]);
+				TreeItem[] currSelection;
+				int currIndex;
 
 				// Set the selection to the previous resource in the
 				// currently displayed list, or the last resource if the first
 				// resource is currently selected.
 				if (tabFolder.getSelectionIndex() == 1 && !imageList.isEmpty()) {
+					currSelection = imageResourceTreeViewer.getTree()
+					.getSelection();
+					currIndex = imageResourceTreeViewer.getTree().indexOf(
+							currSelection[0]);
 					int prevIndex = (currIndex - 1) % imageList.size();
 					if (prevIndex < 0) {
 						prevIndex = imageList.size() - 1;
 					}
-					resourceTreeViewer.setSelection(new StructuredSelection(
+					imageResourceTreeViewer.setSelection(new StructuredSelection(
 							imageList.get(prevIndex)), true);
 				} else if (!textList.isEmpty()) {
+					currSelection = fileResourceTreeViewer.getTree()
+					.getSelection();
+					currIndex = fileResourceTreeViewer.getTree().indexOf(
+							currSelection[0]);
 					int prevIndex = (currIndex - 1) % textList.size();
 					if (prevIndex < 0) {
 						prevIndex = textList.size() - 1;
 					}
-					resourceTreeViewer.setSelection(new StructuredSelection(
+					fileResourceTreeViewer.setSelection(new StructuredSelection(
 							textList.get(prevIndex)), true);
 				}
 			}
